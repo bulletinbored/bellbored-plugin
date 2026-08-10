@@ -16,7 +16,16 @@ if (!isset($_SESSION['user_id'])) {
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-$pdo = new PDO('sqlite:' . ($config['db_path'] ?? __DIR__ . '/../../data/database.sqlite'));
+// Connect using the configured driver (not hard-coded SQLite).
+if (($config['db_driver'] ?? 'sqlite') === 'mysql') {
+    $pdo = new PDO(
+        "mysql:host={$config['db_host']};dbname={$config['db_name']};charset=utf8mb4",
+        $config['db_user'],
+        $config['db_pass']
+    );
+} else {
+    $pdo = new PDO('sqlite:' . ($config['db_path'] ?? __DIR__ . '/../../data/database.sqlite'));
+}
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 function bellbored_validate_csrf_token($token) {
@@ -37,7 +46,7 @@ if ($method === 'GET') {
         $offset = ($page - 1) * $perPage;
 
         $stmt = $pdo->prepare("
-            SELECT id, type, title, message, link, read, created_at
+            SELECT id, type, title, message, link, is_read, created_at
             FROM notifications
             WHERE user_id = ?
             ORDER BY created_at DESC
@@ -46,7 +55,7 @@ if ($method === 'GET') {
         $stmt->execute([$_SESSION['user_id'], $perPage, $offset]);
         $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read = 0");
+        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
         $countStmt->execute([$_SESSION['user_id']]);
         $unreadCount = (int)$countStmt->fetchColumn();
 
@@ -59,7 +68,7 @@ if ($method === 'GET') {
     }
 
     if ($action === 'unread_count') {
-        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read = 0");
+        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
         $countStmt->execute([$_SESSION['user_id']]);
         $unreadCount = (int)$countStmt->fetchColumn();
 
@@ -87,7 +96,7 @@ if ($method === 'POST') {
     if ($action === 'mark_read') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) {
-            $stmt = $pdo->prepare("UPDATE notifications SET read = 1 WHERE id = ? AND user_id = ?");
+            $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?");
             $stmt->execute([$id, $_SESSION['user_id']]);
         }
 
@@ -96,7 +105,7 @@ if ($method === 'POST') {
     }
 
     if ($action === 'mark_all_read') {
-        $pdo->prepare("UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0")
+        $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0")
             ->execute([$_SESSION['user_id']]);
 
         echo json_encode(['success' => true]);

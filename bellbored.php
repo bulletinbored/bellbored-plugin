@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: bellbored
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: mlzog
  * Description: Notification center for the forum
  * License: MIT License
@@ -18,21 +18,40 @@ function bellbored_init() {
     $pluginUrl = $baseUrl . '/plugins/bellbored';
     $apiUrl = $pluginUrl . '/api.php';
 
+    $driver = $config['db_driver'] ?? 'sqlite';
+
     if (isset($pdo)) {
-        $pdo->exec("
-            CREATE TABLE IF NOT EXISTS notifications (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                type VARCHAR(50) DEFAULT 'info',
-                title TEXT NOT NULL,
-                message TEXT,
-                link TEXT,
-                read INTEGER DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ");
-        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)");
-        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read)");
+        if ($driver === 'mysql') {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    user_id INT NOT NULL,
+                    type VARCHAR(50) DEFAULT 'info',
+                    title TEXT NOT NULL,
+                    message TEXT,
+                    link TEXT,
+                    is_read INT DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ");
+            try { $pdo->exec("CREATE INDEX idx_notifications_user_id ON notifications(user_id)"); } catch (Throwable $e) {}
+            try { $pdo->exec("CREATE INDEX idx_notifications_is_read ON notifications(is_read)"); } catch (Throwable $e) {}
+        } else {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    type VARCHAR(50) DEFAULT 'info',
+                    title TEXT NOT NULL,
+                    message TEXT,
+                    link TEXT,
+                    is_read INTEGER DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ");
+            $pdo->exec("CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)");
+            $pdo->exec("CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read)");
+        }
     }
 
     $pluginManager->addHook('after_thread', function($threadId) use ($pdo, $baseUrl) {
@@ -119,7 +138,7 @@ function bellbored_init() {
     $head .= '<script>window.bellbored = window.bellbored || {};window.bellbored.apiUrl = ' . json_encode($apiUrl) . ';window.bellbored.baseUrl = ' . json_encode($baseUrl) . ';window.bellbored.csrfToken = ' . json_encode($csrfToken) . ';</script>' . "\n";
 
     $footer = '<script src="' . $jsUrl . '"></script>' . "\n";
-    $footer .= '<script>setTimeout(function(){window.bellbored = window.bellbored || {};window.bellbored.init && window.bellbored.init();}, 0);</script>' . "\n";
+    $footer .= '<script>setTimeout(function(){window.bellbored = window.bellbored.init && window.bellbored.init();}, 0);</script>' . "\n";
 
     $pluginManager->addHook('frontend_before_render', function() use ($head) {
         echo $head;
