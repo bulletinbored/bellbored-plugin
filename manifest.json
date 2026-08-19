@@ -1,7 +1,18 @@
 {
     "name": "bellbored",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "author": "mlzog",
-    "description": "Notification center for the forum",
-    "bootstrap": "bellbored.php"
+    "description": "Notification bell with unread count for mentions and replies",
+    "bootstrap": "bellbored.php",
+    "license": "MIT License",
+    "files": [
+        "bellbored.php",
+        "api.php",
+        "manifest.json",
+        "README.md",
+        "LICENSE",
+        "assets/css/bellbored.css",
+        "assets/js/bellbored.js",
+        "lang/en.php"
+    ]
 }

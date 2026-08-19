@@ -1,133 +1,74 @@
 <?php
-session_start();
-require_once __DIR__ . '/../../config.php';
+/**
+ * bellbored notification API.
+ *
+ * Exposes unread-count retrieval and mark-as-read for the current user.
+ * No authentication beyond the existing session is performed: the caller
+ * must be logged in (the bell only renders for authenticated users).
+ */
 
-header('Content-Type: application/json');
+require_once __DIR__ . '/../../src/bootstrap.php';
+require_once __DIR__ . '/../../src/setup.php';
 
-$baseUrl = rtrim(!empty($config['base_url']) ? $config['base_url'] : preg_replace('#/plugins/[^/]+/[^/]+$#', '', $_SERVER['SCRIPT_NAME'] ?? ''), '/');
-$pluginUrl = $baseUrl . '/plugins/bellbored';
-$apiUrl = $pluginUrl . '/api.php';
+header('Content-Type: application/json; charset=utf-8');
 
-if (!isset($_SESSION['user_id'])) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Login required']);
+// Always respond with JSON, even on fatal errors, so the frontend never
+// receives an HTML error page that would break JSON.parse in production.
+set_exception_handler(function ($e) {
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode(['error' => 'Internal error: ' . $e->getMessage()]);
+    exit;
+});
+
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'unauthorized']);
     exit;
 }
 
-$method = $_SERVER['REQUEST_METHOD'];
+$userId = (int)$_SESSION['user_id'];
+$driver = $config['db_driver'] ?? 'sqlite';
 
-// Connect using the configured driver (not hard-coded SQLite).
-if (($config['db_driver'] ?? 'sqlite') === 'mysql') {
-    $pdo = new PDO(
-        "mysql:host={$config['db_host']};dbname={$config['db_name']};charset=utf8mb4",
-        $config['db_user'],
-        $config['db_pass']
-    );
-} else {
-    $pdo = new PDO('sqlite:' . ($config['db_path'] ?? __DIR__ . '/../../data/database.sqlite'));
-}
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$verb = $_SERVER['REQUEST_METHOD'];
 
-function bellbored_validate_csrf_token($token) {
-    return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
-}
+if ($verb === 'GET') {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
+    $stmt->execute([$userId]);
+    $count = (int)$stmt->fetchColumn();
 
-if ($method === 'GET') {
-    $requestUri = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
-    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-    $path = substr($requestUri, strlen($scriptName));
-    $path = ltrim($path, '/');
-    $pathAction = $path ? explode('/', $path)[0] : '';
-    $action = $pathAction ?: $_GET['action'] ?? 'list';
+    $listStmt = $pdo->prepare("SELECT id, type, message, link, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 10");
+    $listStmt->execute([$userId]);
+    $items = $listStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if ($action === 'list') {
-        $page = max(1, (int)($_GET['page'] ?? 1));
-        $perPage = 20;
-        $offset = ($page - 1) * $perPage;
-
-        $stmt = $pdo->prepare("
-            SELECT id, type, title, message, link, is_read, created_at
-            FROM notifications
-            WHERE user_id = ?
-            ORDER BY created_at DESC
-            LIMIT ? OFFSET ?
-        ");
-        $stmt->execute([$_SESSION['user_id'], $perPage, $offset]);
-        $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
-        $countStmt->execute([$_SESSION['user_id']]);
-        $unreadCount = (int)$countStmt->fetchColumn();
-
-        echo json_encode([
-            'success' => true,
-            'notifications' => $notifications,
-            'unread_count' => $unreadCount,
-        ]);
-        exit;
-    }
-
-    if ($action === 'unread_count') {
-        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
-        $countStmt->execute([$_SESSION['user_id']]);
-        $unreadCount = (int)$countStmt->fetchColumn();
-
-        echo json_encode([
-            'success' => true,
-            'unread_count' => $unreadCount,
-        ]);
-        exit;
-    }
-
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid action']);
+    echo json_encode(['count' => $count, 'items' => $items]);
     exit;
 }
 
-if ($method === 'POST') {
-    if (!bellbored_validate_csrf_token($_POST['csrf_token'] ?? '')) {
+if ($verb === 'POST') {
+    $raw = file_get_contents('php://input');
+    $data = json_decode($raw, true);
+    $id = isset($data['id']) ? (int)$data['id'] : 0;
+
+    if (!hash_equals($_SESSION['csrf_token'] ?? '', (string)($data['csrf_token'] ?? ''))) {
         http_response_code(403);
-        echo json_encode(['error' => 'CSRF token invalid']);
+        echo json_encode(['error' => 'invalid_csrf']);
         exit;
     }
 
-    $action = $_POST['action'] ?? '';
-
-    if ($action === 'mark_read') {
-        $id = (int)($_POST['id'] ?? 0);
-        if ($id > 0) {
-            $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?");
-            $stmt->execute([$id, $_SESSION['user_id']]);
-        }
-
-        echo json_encode(['success' => true]);
-        exit;
+    if ($id > 0) {
+        $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?");
+        $stmt->execute([$id, $userId]);
+    } else {
+        $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?");
+        $stmt->execute([$userId]);
     }
 
-    if ($action === 'mark_all_read') {
-        $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0")
-            ->execute([$_SESSION['user_id']]);
-
-        echo json_encode(['success' => true]);
-        exit;
-    }
-
-    if ($action === 'delete') {
-        $id = (int)($_POST['id'] ?? 0);
-        if ($id > 0) {
-            $stmt = $pdo->prepare("DELETE FROM notifications WHERE id = ? AND user_id = ?");
-            $stmt->execute([$id, $_SESSION['user_id']]);
-        }
-
-        echo json_encode(['success' => true]);
-        exit;
-    }
-
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid action']);
+    echo json_encode(['success' => true]);
     exit;
 }
 
 http_response_code(405);
-echo json_encode(['error' => 'Method not allowed']);
-exit;
+echo json_encode(['error' => 'method_not_allowed']);

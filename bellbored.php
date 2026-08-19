@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: bellbored
- * Version: 1.0.1
+ * Version: 1.0.0
  * Author: mlzog
- * Description: Notification center for the forum
+ * Description: Notification bell with unread count for mentions and replies
  * License: MIT License
  */
 
@@ -26,119 +26,43 @@ function bellbored_init() {
                 CREATE TABLE IF NOT EXISTS notifications (
                     id INT PRIMARY KEY AUTO_INCREMENT,
                     user_id INT NOT NULL,
-                    type VARCHAR(50) DEFAULT 'info',
-                    title TEXT NOT NULL,
-                    message TEXT,
-                    link TEXT,
+                    type VARCHAR(32) NOT NULL DEFAULT 'generic',
+                    message TEXT NOT NULL,
+                    link VARCHAR(512) DEFAULT '',
                     is_read INT DEFAULT 0,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ");
-            try { $pdo->exec("CREATE INDEX idx_notifications_user_id ON notifications(user_id)"); } catch (Throwable $e) {}
-            try { $pdo->exec("CREATE INDEX idx_notifications_is_read ON notifications(is_read)"); } catch (Throwable $e) {}
+            try { $pdo->exec("CREATE INDEX idx_notifications_user ON notifications(user_id, is_read, created_at)"); } catch (Throwable $e) {}
         } else {
             $pdo->exec("
                 CREATE TABLE IF NOT EXISTS notifications (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
-                    type VARCHAR(50) DEFAULT 'info',
-                    title TEXT NOT NULL,
-                    message TEXT,
-                    link TEXT,
+                    type TEXT NOT NULL DEFAULT 'generic',
+                    message TEXT NOT NULL,
+                    link TEXT DEFAULT '',
                     is_read INTEGER DEFAULT 0,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ");
-            $pdo->exec("CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)");
-            $pdo->exec("CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read)");
+            $pdo->exec("CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read, created_at)");
         }
     }
 
-    $pluginManager->addHook('after_thread', function($threadId) use ($pdo, $baseUrl) {
-        $threadStmt = $pdo->prepare("
-            SELECT t.title, t.user_id, u.email, u.username
-            FROM threads t
-            JOIN users u ON t.user_id = u.id
-            WHERE t.id = ?
-        ");
-        $threadStmt->execute([$threadId]);
-        $thread = $threadStmt->fetch();
-
-        if (!$thread) {
-            return;
-        }
-
-        $watchersStmt = $pdo->prepare("
-            SELECT w.user_id, u.email, u.username
-            FROM thread_watchers w
-            JOIN users u ON w.user_id = u.id
-            WHERE w.thread_id = ? AND w.user_id <> ?
-        ");
-        $watchersStmt->execute([$threadId, $thread['user_id']]);
-        $watchers = $watchersStmt->fetchAll();
-
-        foreach ($watchers as $watcher) {
-            if (!empty($watcher['email'])) {
-                $link = url('thread', ['id' => $threadId]);
-                $pdo->prepare("
-                    INSERT INTO notifications (user_id, type, title, message, link)
-                    VALUES (?, 'thread', ?, ?, ?)
-                ")->execute([$watcher['user_id'], 'New thread: ' . $thread['title'], $thread['username'] . ' created a new thread', $link]);
-            }
-        }
-    });
-
-    $pluginManager->addHook('after_post', function($threadId, $postId) use ($pdo, $baseUrl) {
-        $postStmt = $pdo->prepare("
-            SELECT p.user_id as post_user_id, t.user_id as thread_user_id, t.title, u.username
-            FROM posts p
-            JOIN threads t ON p.thread_id = t.id
-            JOIN users u ON p.user_id = u.id
-            WHERE p.id = ?
-        ");
-        $postStmt->execute([$postId]);
-        $post = $postStmt->fetch();
-
-        if (!$post) {
-            return;
-        }
-
-        $watchersStmt = $pdo->prepare("
-            SELECT w.user_id, u.email, u.username
-            FROM thread_watchers w
-            JOIN users u ON w.user_id = u.id
-            WHERE w.thread_id = ? AND w.user_id <> ?
-        ");
-        $watchersStmt->execute([$threadId, $post['post_user_id']]);
-        $watchers = $watchersStmt->fetchAll();
-
-        foreach ($watchers as $watcher) {
-            if (!empty($watcher['email'])) {
-                $link = url('thread', ['id' => $threadId]);
-                $pdo->prepare("
-                    INSERT INTO notifications (user_id, type, title, message, link)
-                    VALUES (?, 'reply', ?, ?, ?)
-                ")->execute([$watcher['user_id'], 'New reply: ' . $post['title'], $post['username'] . ' replied to a thread', $link]);
-            }
-        }
-    });
-
-    $pluginManager->addHook('user_registered', function($userId, $username) use ($pdo) {
-        $pdo->prepare("
-            INSERT INTO notifications (user_id, type, title, message)
-            VALUES (?, 'welcome', 'Welcome!', ?)
-        ")->execute([$userId, 'Welcome to the forum, ' . $username . '!']);
-    });
-
-    $cssUrl = $pluginUrl . '/assets/css/bellbored.css';
-    $jsUrl = $pluginUrl . '/assets/js/bellbored.js';
+    $bbVer = function($rel) use ($pluginUrl) {
+        $f = __DIR__ . '/' . $rel;
+        return $pluginUrl . '/' . $rel . '?v=' . (file_exists($f) ? filemtime($f) : time());
+    };
+    $cssUrl = $bbVer('assets/css/bellbored.css');
+    $jsUrl = $bbVer('assets/js/bellbored.js');
     $csrfToken = htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES);
 
     $head = '<link href="' . $cssUrl . '" rel="stylesheet">' . "\n";
-    $head .= '<script>window.bellbored = window.bellbored || {};window.bellbored.apiUrl = ' . json_encode($apiUrl) . ';window.bellbored.baseUrl = ' . json_encode($baseUrl) . ';window.bellbored.csrfToken = ' . json_encode($csrfToken) . ';</script>' . "\n";
+    $head .= '<script>window.bellbored = window.bellbored || {};window.bellbored.apiUrl = ' . json_encode($apiUrl) . ';window.bellbored.baseUrl = ' . json_encode($baseUrl) . ';window.bellbored.csrfToken = ' . json_encode($csrfToken) . ';window.bellbored.currentUserId = ' . json_encode($_SESSION['user_id'] ?? 0) . ';window.bellbored.loggedIn = ' . json_encode(!empty($_SESSION['user_id'])) . ';</script>' . "\n";
 
     $footer = '<script src="' . $jsUrl . '"></script>' . "\n";
-    $footer .= '<script>setTimeout(function(){window.bellbored = window.bellbored.init && window.bellbored.init();}, 0);</script>' . "\n";
+    $footer .= '<script>setTimeout(function(){window.bellbored = window.bellbored || {};window.bellbored.init && window.bellbored.init();}, 0);</script>' . "\n";
 
     $pluginManager->addHook('frontend_before_render', function() use ($head) {
         echo $head;
