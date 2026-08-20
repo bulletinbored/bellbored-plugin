@@ -1,6 +1,6 @@
 {
     "name": "bellbored",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "author": "mlzog",
     "description": "Notification bell with unread count for mentions and replies",
     "bootstrap": "bellbored.php",

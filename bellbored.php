@@ -61,8 +61,7 @@ function bellbored_init() {
     $head = '<link href="' . $cssUrl . '" rel="stylesheet">' . "\n";
     $head .= '<script>window.bellbored = window.bellbored || {};window.bellbored.apiUrl = ' . json_encode($apiUrl) . ';window.bellbored.baseUrl = ' . json_encode($baseUrl) . ';window.bellbored.csrfToken = ' . json_encode($csrfToken) . ';window.bellbored.currentUserId = ' . json_encode($_SESSION['user_id'] ?? 0) . ';window.bellbored.loggedIn = ' . json_encode(!empty($_SESSION['user_id'])) . ';</script>' . "\n";
 
-    $footer = '<script src="' . $jsUrl . '"></script>' . "\n";
-    $footer .= '<script>setTimeout(function(){window.bellbored = window.bellbored || {};window.bellbored.init && window.bellbored.init();}, 0);</script>' . "\n";
+    $footer = '<script src="' . $jsUrl . '" onload="window.bellbored=window.bellbored||{};window.bellbored.init&&window.bellbored.init()"></script>' . "\n";
 
     $pluginManager->addHook('frontend_before_render', function() use ($head) {
         echo $head;

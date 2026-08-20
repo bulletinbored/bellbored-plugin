@@ -35,7 +35,7 @@
 .bellbored-panel {
     position: absolute;
     top: 110%;
-    right: 0;
+    right: 20px;
     width: 280px;
     max-height: 360px;
     overflow-y: auto;

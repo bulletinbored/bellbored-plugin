@@ -11,9 +11,15 @@
     }
 
     function mount() {
-        // Attach the notifications dropdown to the existing bell in the user
-        // menu (topbar-user, right after the messages icon). Never inject a
-        // second bell.
+        if (!B.loggedIn) {
+            return;
+        }
+        // On mobile the bell is a plain link to the notifications page
+        // (the numbered badge stays). Dropdowns are disabled there.
+        if (window.matchMedia && window.matchMedia('(max-width: 991.98px)').matches) {
+            return;
+        }
+
         var userNav = document.querySelector('ul.topbar-user') || document.querySelector('.topbar-user');
         if (!userNav) {
             return;
@@ -92,11 +98,19 @@
             });
         }
 
+        function closeOtherDropdowns() {
+            var otherDropdown = document.querySelector('.textmebored-dropdown');
+            if (otherDropdown && otherDropdown.style.display !== 'none') {
+                otherDropdown.style.display = 'none';
+            }
+        }
+
         icon.addEventListener('click', function (e) {
             e.preventDefault();
             var open = panel.getAttribute('data-open') === '1';
             panel.setAttribute('data-open', open ? '0' : '1');
             if (!open) {
+                closeOtherDropdowns();
                 load();
             }
         });
