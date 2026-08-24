@@ -1,10 +1,9 @@
 <?php
 /**
  * Plugin Name: bellbored
- * Version: 1.0.4
  * Author: mlzog
  * Description: Notification bell with unread count. Displays in-app notifications written by the core and other plugins.
- * License: MIT License
+ * License: BSD Zero Clause License
  */
 
 function bellbored_init() {
@@ -71,12 +70,12 @@ function bellbored_init() {
     $cssUrl = $bbVer('assets/css/bellbored.css');
     $jsUrl = $bbVer('assets/js/bellbored.js');
     $csrfToken = htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES);
-    $nonce = $_SERVER['CSP_NONCE'] ?? '';
+    $nonce = $GLOBALS['CSP_NONCE'] ?? '';
 
     $head = '<link href="' . $cssUrl . '" rel="stylesheet">' . "\n";
     $head .= '<script nonce="' . htmlspecialchars($nonce, ENT_QUOTES, 'UTF-8') . '">window.bellbored = window.bellbored || {};window.bellbored.apiUrl = ' . json_encode($apiUrl) . ';window.bellbored.baseUrl = ' . json_encode($baseUrl) . ';window.bellbored.csrfToken = ' . json_encode($csrfToken) . ';window.bellbored.currentUserId = ' . json_encode($_SESSION['user_id'] ?? 0) . ';window.bellbored.loggedIn = ' . json_encode(!empty($_SESSION['user_id'])) . ';</script>' . "\n";
 
-    $footer = '<script src="' . $jsUrl . '"></script>' . "\n";
+    $footer = '<script src="' . $jsUrl . '" nonce="' . htmlspecialchars($nonce, ENT_QUOTES, 'UTF-8') . '"></script>' . "\n";
 
     $pluginManager->addHook('frontend_before_render', function() use ($head) {
         echo $head;

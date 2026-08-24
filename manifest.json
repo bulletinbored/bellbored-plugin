@@ -1,10 +1,10 @@
 {
     "name": "bellbored",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "author": "mlzog",
-    "description": "Notification bell with unread count for mentions and replies",
+    "description": "Notification bell that displays in-app notifications written by the core and other plugins",
     "bootstrap": "bellbored.php",
-    "license": "MIT License",
+    "license": "BSD Zero Clause License",
     "files": [
         "bellbored.php",
         "api.php",
