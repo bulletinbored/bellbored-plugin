@@ -1,6 +1,6 @@
 {
     "name": "bellbored",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "author": "mlzog",
     "description": "Notification bell that displays in-app notifications written by the core and other plugins",
     "bootstrap": "bellbored.php",

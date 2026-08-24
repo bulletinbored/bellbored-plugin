@@ -39,9 +39,32 @@ if ($verb === 'GET') {
     $stmt->execute([$userId]);
     $count = (int)$stmt->fetchColumn();
 
-    $listStmt = $pdo->prepare("SELECT id, type, message, link, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 10");
+    $listStmt = $pdo->prepare("SELECT id, type, title, message, link, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 10");
     $listStmt->execute([$userId]);
     $items = $listStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Translate raw/key-like notification messages into human-readable text.
+    $labelMap = [
+        'pm'              => 'New private message',
+        'pm_notification' => 'New private message',
+        'vote'            => 'New vote on your post',
+        'reply'           => 'New reply',
+        'mention'         => 'You were mentioned',
+        'follow'          => 'New follower',
+        'role'            => 'Your role was updated',
+    ];
+    foreach ($items as &$it) {
+        $title = (string)($it['title'] ?? '');
+        $type = (string)($it['type'] ?? '');
+        $message = (string)($it['message'] ?? '');
+        // A stored title that is itself a raw key (e.g. "pm_notification") or
+        // empty must be translated too, not passed through verbatim.
+        if ($title === '' || isset($labelMap[$title])) {
+            $label = $labelMap[$type] ?? $labelMap[$message] ?? ($title !== '' ? $title : $message);
+            $it['title'] = $label;
+        }
+        unset($it);
+    }
 
     echo json_encode(['count' => $count, 'items' => $items]);
     exit;

@@ -26,42 +26,35 @@
         }
 
         var icon = userNav.querySelector('a[href*="notifications"][title="Notifications"]');
-
         if (!icon) {
-            // No core bell present: create our own and insert it just before
-            // the user dropdown (last <li>), so it sits after the messages icon.
-            var root = el(
-                '<div class="bellbored-bell" id="bellbored-root">' +
-                '  <a href="#" class="bellbored-bell__icon" title="Notifications">' +
-                '    <i class="fas fa-bell"></i>' +
-                '    <span class="bellbored-bell__count" hidden>0</span>' +
-                '  </a>' +
-                '  <div class="bellbored-panel">' +
-                '    <div class="bellbored-empty">Loading…</div>' +
-                '  </div>' +
-                '</div>'
-            );
-            var lastLi = userNav.querySelector('li:last-child');
-            if (lastLi) {
-                userNav.insertBefore(root, lastLi);
-            } else {
-                userNav.appendChild(root);
-            }
-            icon = root.querySelector('.bellbored-bell__icon');
+            return;
         }
 
-        var root = icon;
-        var panel = document.createElement('div');
-        panel.className = 'bellbored-panel';
-        panel.innerHTML = '<div class="bellbored-empty">Loading…</div>';
+        icon.classList.add('dropdown-toggle');
+        icon.setAttribute('data-bs-toggle', 'dropdown');
+        icon.setAttribute('role', 'button');
+        icon.setAttribute('aria-expanded', 'false');
+
+        var panel = document.createElement('ul');
+        panel.className = 'dropdown-menu dropdown-menu-end';
+        panel.style.width = '320px';
+        panel.style.maxHeight = '400px';
+        panel.style.overflowY = 'auto';
+        panel.innerHTML = '<li class="dropdown-header d-flex justify-content-between align-items-center"><span><i class="fas fa-bell me-1"></i>Notifications</span><a class="small" href="' + B.baseUrl + '/notifications">View all</a></li><li><hr class="dropdown-divider"></li><li class="bellbored-empty-msg dropdown-item-text text-center text-muted py-3">Loading…</li>';
+
         (icon.closest('li') || icon.parentNode).appendChild(panel);
 
-        var countEl = icon.querySelector('.nav-badge') || icon.querySelector('.bellbored-bell__count');
+        var countEl = icon.querySelector('.nav-badge');
         if (!countEl) {
             countEl = document.createElement('span');
             countEl.className = 'nav-badge';
-            countEl.hidden = true;
             icon.appendChild(countEl);
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
         }
 
         function load() {
@@ -71,66 +64,30 @@
                     var count = data.count || 0;
                     if (count > 0) {
                         countEl.textContent = count > 99 ? '99+' : count;
-                        countEl.removeAttribute('hidden');
                     } else {
-                        countEl.setAttribute('hidden', '');
+                        countEl.textContent = '';
                     }
 
                     if (!data.items || !data.items.length) {
-                        panel.innerHTML = '<div class="bellbored-empty">No notifications</div>';
+                        panel.innerHTML = '<li class="dropdown-header d-flex justify-content-between align-items-center"><span><i class="fas fa-bell me-1"></i>Notifications</span><a class="small" href="' + B.baseUrl + '/notifications">View all</a></li><li><hr class="dropdown-divider"></li><li class="bellbored-empty-msg dropdown-item-text text-center text-muted py-3">No notifications</li>';
                         return;
                     }
 
-                    panel.innerHTML = '';
+                    var html = '<li class="dropdown-header d-flex justify-content-between align-items-center"><span><i class="fas fa-bell me-1"></i>Notifications</span><a class="small" href="' + B.baseUrl + '/notifications">View all</a></li><li><hr class="dropdown-divider"></li>';
                     data.items.forEach(function (item) {
-                        var inner = item.link
-                            ? '<a href="' + item.link + '">' + escapeHtml(item.message) + '</a>'
-                            : '<span>' + escapeHtml(item.message) + '</span>';
-                        panel.appendChild(el('<div class="bellbored-item" data-id="' + item.id + '">' + inner + '</div>'));
+                        var label = item.title ? item.title : escapeHtml(item.message);
+                        var href = item.link || (B.baseUrl + '/notifications');
+                        html += '<li><a class="dropdown-item' + (item.is_read ? '' : ' fw-semibold') + '" href="' + href + '"><div class="small text-truncate">' + escapeHtml(label) + '</div></a></li>';
                     });
+                    html += '<li><hr class="dropdown-divider"></li><li><a class="dropdown-item text-center" href="' + B.baseUrl + '/notifications"><i class="fas fa-bell me-2"></i>Open notifications</a></li>';
+                    panel.innerHTML = html;
                 })
                 .catch(function () {});
         }
 
-        function escapeHtml(s) {
-            return String(s).replace(/[&<>"']/g, function (c) {
-                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-            });
-        }
-
-        function closeOtherDropdowns() {
-            var otherDropdown = document.querySelector('.textmebored-dropdown');
-            if (otherDropdown && otherDropdown.style.display !== 'none') {
-                otherDropdown.style.display = 'none';
-            }
-        }
-
-        icon.addEventListener('click', function (e) {
-            e.preventDefault();
-            var open = panel.getAttribute('data-open') === '1';
-            panel.setAttribute('data-open', open ? '0' : '1');
-            if (!open) {
-                closeOtherDropdowns();
+        icon.addEventListener('shown.bs.dropdown', function () {
+            if (!panel.querySelector('.dropdown-item[data-id], .bellbored-empty-msg')) {
                 load();
-            }
-        });
-
-        panel.addEventListener('click', function (e) {
-            var item = e.target.closest('.bellbored-item');
-            if (!item) {
-                return;
-            }
-            fetch(B.apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify({ id: parseInt(item.getAttribute('data-id'), 10), csrf_token: B.csrfToken })
-            }).then(function () { load(); }).catch(function () {});
-        });
-
-        document.addEventListener('click', function (e) {
-            if (!root.contains(e.target)) {
-                panel.setAttribute('data-open', '0');
             }
         });
 
