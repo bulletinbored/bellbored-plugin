@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: bellbored
- * Version: 1.0.0
+ * Version: 1.0.4
  * Author: mlzog
- * Description: Notification bell with unread count for mentions and replies
+ * Description: Notification bell with unread count. Displays in-app notifications written by the core and other plugins.
  * License: MIT License
  */
 
@@ -27,6 +27,7 @@ function bellbored_init() {
                     id INT PRIMARY KEY AUTO_INCREMENT,
                     user_id INT NOT NULL,
                     type VARCHAR(32) NOT NULL DEFAULT 'generic',
+                    title VARCHAR(255) NOT NULL DEFAULT '',
                     message TEXT NOT NULL,
                     link VARCHAR(512) DEFAULT '',
                     is_read INT DEFAULT 0,
@@ -40,6 +41,7 @@ function bellbored_init() {
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
                     type TEXT NOT NULL DEFAULT 'generic',
+                    title TEXT NOT NULL DEFAULT '',
                     message TEXT NOT NULL,
                     link TEXT DEFAULT '',
                     is_read INTEGER DEFAULT 0,
@@ -50,6 +52,18 @@ function bellbored_init() {
         }
     }
 
+    // Ensure the title column exists on already-installed databases (older
+    // schemas may be missing it). Idempotent across MySQL and SQLite.
+    if (isset($pdo)) {
+        try {
+            if ($driver === 'mysql') {
+                $pdo->exec("ALTER TABLE notifications ADD COLUMN title VARCHAR(255) NOT NULL DEFAULT ''");
+            } else {
+                $pdo->exec("ALTER TABLE notifications ADD COLUMN title TEXT NOT NULL DEFAULT ''");
+            }
+        } catch (Throwable $e) {}
+    }
+
     $bbVer = function($rel) use ($pluginUrl) {
         $f = __DIR__ . '/' . $rel;
         return $pluginUrl . '/' . $rel . '?v=' . (file_exists($f) ? filemtime($f) : time());
@@ -57,11 +71,12 @@ function bellbored_init() {
     $cssUrl = $bbVer('assets/css/bellbored.css');
     $jsUrl = $bbVer('assets/js/bellbored.js');
     $csrfToken = htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES);
+    $nonce = $_SERVER['CSP_NONCE'] ?? '';
 
     $head = '<link href="' . $cssUrl . '" rel="stylesheet">' . "\n";
-    $head .= '<script>window.bellbored = window.bellbored || {};window.bellbored.apiUrl = ' . json_encode($apiUrl) . ';window.bellbored.baseUrl = ' . json_encode($baseUrl) . ';window.bellbored.csrfToken = ' . json_encode($csrfToken) . ';window.bellbored.currentUserId = ' . json_encode($_SESSION['user_id'] ?? 0) . ';window.bellbored.loggedIn = ' . json_encode(!empty($_SESSION['user_id'])) . ';</script>' . "\n";
+    $head .= '<script nonce="' . htmlspecialchars($nonce, ENT_QUOTES, 'UTF-8') . '">window.bellbored = window.bellbored || {};window.bellbored.apiUrl = ' . json_encode($apiUrl) . ';window.bellbored.baseUrl = ' . json_encode($baseUrl) . ';window.bellbored.csrfToken = ' . json_encode($csrfToken) . ';window.bellbored.currentUserId = ' . json_encode($_SESSION['user_id'] ?? 0) . ';window.bellbored.loggedIn = ' . json_encode(!empty($_SESSION['user_id'])) . ';</script>' . "\n";
 
-    $footer = '<script src="' . $jsUrl . '" onload="window.bellbored=window.bellbored||{};window.bellbored.init&&window.bellbored.init()"></script>' . "\n";
+    $footer = '<script src="' . $jsUrl . '"></script>' . "\n";
 
     $pluginManager->addHook('frontend_before_render', function() use ($head) {
         echo $head;
