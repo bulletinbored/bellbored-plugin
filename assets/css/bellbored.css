@@ -13,3 +13,42 @@
     text-align: center;
     font-weight: 700;
 }
+
+.bellbored-panel .bellbored-item {
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+}
+
+.bellbored-panel .bellbored-item .dropdown-item {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.bellbored-panel .bellbored-unread .dropdown-item {
+    background-color: rgba(85, 2, 150, 0.06);
+}
+
+.bellbored-mark-one {
+    flex: 0 0 auto;
+    border: 0;
+    background: transparent;
+    color: #16a34a;
+    padding: .15rem .4rem;
+    line-height: 1;
+}
+
+.bellbored-mark-one:hover {
+    background: rgba(22, 163, 74, 0.12);
+    border-radius: 6px;
+}
+
+.bellbored-mark-all {
+    cursor: pointer;
+    color: #16a34a;
+    text-decoration: none;
+}
+
+.bellbored-mark-all:hover {
+    text-decoration: underline;
+}

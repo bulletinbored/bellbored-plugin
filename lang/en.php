@@ -4,4 +4,5 @@ return [
     'notifications' => 'Notifications',
     'no_notifications' => 'No notifications',
     'mark_all_read' => 'Mark all as read',
+    'mark_read' => 'Mark as read',
 ];
