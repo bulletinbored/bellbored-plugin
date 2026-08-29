@@ -88,4 +88,65 @@ function bellbored_init() {
     $pluginManager->addHook('footer_before_render', function() use ($footer) {
         echo $footer;
     });
+
+    $pluginManager->addHook('navbar_icons', function() {
+        $baseUrl = rtrim(base_url(), '/');
+        $safeTitle = htmlspecialchars(t('notifications'), ENT_QUOTES, 'UTF-8');
+        echo '<li class="nav-item">';
+        echo '<a class="nav-link nav-icon position-relative" href="' . $baseUrl . '/notifications" title="' . $safeTitle . '" data-mobile-tab="notifications">';
+        echo '<i class="fas fa-bell"></i>';
+        echo '</a>';
+        echo '</li>';
+    });
+
+    $pluginManager->addHook('mobile_tabbar_icons', function() {
+        $baseUrl = rtrim(base_url(), '/');
+        $safeTitle = htmlspecialchars(t('notifications'), ENT_QUOTES, 'UTF-8');
+        echo '<a href="' . $baseUrl . '/notifications" class="mobile-tab" data-mobile-tab="notifications" title="' . $safeTitle . '">';
+        echo '<i class="fas fa-bell"></i>';
+        echo '</a>';
+    });
+
+    $pluginManager->addHook('mobile_stack_tabs', function() {
+        $isActive = !isset($_SESSION['user_id']) ? '' : '';
+        echo '<button type="button" class="mobile-stack-tab' . $isActive . '" data-tab="notifications" role="tab"><i class="fas fa-bell"></i></button>';
+    });
+
+    $pluginManager->addHook('mobile_stack_panes', function() {
+        echo '<div class="mobile-stack-pane" data-pane="notifications" id="paneNotifications"><div class="mobile-stack-loading">Loading…</div></div>';
+    });
+
+    $pluginManager->registerRoute('GET', '/notifications', function() {
+        bellbored_handle_page('GET');
+    }, ['auth']);
+    $pluginManager->registerRoute('POST', '/notifications', function() {
+        bellbored_handle_page('POST');
+    }, ['auth']);
+}
+
+function bellbored_handle_page(string $method): void
+{
+    global $pdo;
+
+    if (!is_logged_in()) {
+        die('Login required');
+    }
+    if ($method === 'POST' && csrf_validate_request()) {
+        if (isset($_POST['do']) && $_POST['do'] === 'mark_read' && isset($_GET['id'])) {
+            $id = (int)$_GET['id'];
+            if ($id > 0) {
+                $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?")
+                    ->execute([$id, $_SESSION['user_id']]);
+            }
+        }
+        if (isset($_POST['do']) && $_POST['do'] === 'mark_all_read') {
+            $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0")
+                ->execute([$_SESSION['user_id']]);
+        }
+        redirect(rtrim(base_url(), '/') . '/notifications');
+    }
+    $notifications = $pdo->prepare("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC");
+    $notifications->execute([$_SESSION['user_id']]);
+    $notifications = $notifications->fetchAll();
+    include __DIR__ . '/page/notifications.php';
 }
