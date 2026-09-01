@@ -70,7 +70,7 @@ function bellbored_init() {
     $cssUrl = $bbVer('assets/css/bellbored.css');
     $jsUrl = $bbVer('assets/js/bellbored.js');
     $csrfToken = htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES);
-    $nonce = $GLOBALS['CSP_NONCE'] ?? '';
+    $nonce = App::getInstance()->cspNonce ?? '';
     $labels = [
         'markAllRead' => pt('bellbored', 'mark_all_read'),
         'markRead'    => pt('bellbored', 'mark_read'),
