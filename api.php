@@ -15,11 +15,12 @@ header('Content-Type: application/json; charset=utf-8');
 // Always respond with JSON, even on fatal errors, so the frontend never
 // receives an HTML error page that would break JSON.parse in production.
 set_exception_handler(function ($e) {
+    error_log('bellbored api: ' . $e->getMessage());
     if (!headers_sent()) {
         http_response_code(500);
         header('Content-Type: application/json; charset=utf-8');
     }
-    echo json_encode(['error' => 'Internal error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'internal_error']);
     exit;
 });
 
