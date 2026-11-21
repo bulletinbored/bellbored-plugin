@@ -1,4 +1,28 @@
-<?php include __DIR__.'/../../../views/header.php'; render_header('Notifications'); ?>
+<?php
+if (!function_exists('bellbored_render_notification')) {
+    /**
+     * Core notifications store their e-mail HTML body in the message column.
+     * Render only safe inline formatting so the page never shows raw tags.
+     * Messages that are already plain text are escaped normally.
+     */
+    function bellbored_render_notification(string $message): string
+    {
+        if (!preg_match('/<(?:p|br|div|strong|b|em|i|code|a|ul|ol|li|h[1-6]|blockquote)\b[^>]*>/i', $message)) {
+            return escape($message);
+        }
+
+        $html = preg_replace(
+            '#<\s*/?\s*(?:p|div|br|li|ul|ol|h[1-6]|blockquote|tr|td|th)\b[^>]*>#i',
+            ' ',
+            $message
+        );
+        $html = strip_tags($html, '<strong><b><em><i><code><s><del>');
+        $html = preg_replace('/<(strong|b|em|i|code|s|del)\b[^>]*>/i', '<$1>', $html);
+
+        return trim(preg_replace('/\s+/u', ' ', $html));
+    }
+}
+include __DIR__.'/../../../views/header.php'; render_header('Notifications'); ?>
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="<?= url('home') ?>"><?= t('all_discussions') ?></a></li>
@@ -42,7 +66,7 @@
                             <div>
                                 <h6 class="mb-1"><?= escape($nLabel) ?></h6>
                                 <?php if ($nMessage !== '' && $nMessage !== $nLabel): ?>
-                                    <p class="mb-1 small text-muted"><?= escape($nMessage) ?></p>
+                                    <p class="mb-1 small text-muted"><?= bellbored_render_notification($nMessage) ?></p>
                                 <?php endif; ?>
                             <small class="text-muted"><i class="fas fa-clock me-1"></i><?= escape($nFormattedDate) ?></small>
                         </div>
