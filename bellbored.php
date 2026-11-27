@@ -17,6 +17,11 @@ function bellbored_init() {
     $pluginUrl = $baseUrl . '/plugins/bellbored';
     $apiUrl = $pluginUrl . '/api.php';
 
+    // Preserve the original menu order in forum mode; only the full social
+    // mode puts Notifications after Messages.
+    $socialboredMode = strtolower((string)$pluginManager->getSetting('socialbored', 'mode', 'forum'));
+    $navPriority = $socialboredMode === 'social' ? 30 : 10;
+
     $driver = $config['db_driver'] ?? 'sqlite';
 
     if (isset($pdo)) {
@@ -97,7 +102,7 @@ function bellbored_init() {
         echo '<i class="fas fa-bell"></i>';
         echo '</a>';
         echo '</li>';
-    });
+    }, $navPriority);
 
     $pluginManager->addHook('mobile_tabbar_icons', function() {
         $baseUrl = rtrim(base_url(), '/');
@@ -105,12 +110,12 @@ function bellbored_init() {
         echo '<a href="' . $baseUrl . '/notifications" class="mobile-tab" data-mobile-tab="notifications" title="' . $safeTitle . '">';
         echo '<i class="fas fa-bell"></i>';
         echo '</a>';
-    });
+    }, $navPriority);
 
     $pluginManager->addHook('mobile_stack_tabs', function() {
         $isActive = !isset($_SESSION['user_id']) ? '' : '';
         echo '<button type="button" class="mobile-stack-tab' . $isActive . '" data-tab="notifications" role="tab"><i class="fas fa-bell"></i></button>';
-    });
+    }, $navPriority);
 
     $pluginManager->addHook('mobile_stack_panes', function() {
         echo '<div class="mobile-stack-pane" data-pane="notifications" id="paneNotifications"><div class="mobile-stack-loading">Loading…</div></div>';
